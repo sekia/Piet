@@ -24,13 +24,6 @@ module ColorBlocks =
             let compare (a : t) b = compare a b
           end)
 
-    module EdgesMemo =
-      Map.Make (
-          struct
-            type t = Codels.t
-            let compare = Codels.compare
-          end)
-
     module Map =
       Map.Make (
           struct
@@ -41,20 +34,6 @@ module ColorBlocks =
     type t = block Map.t
 
     let find = Map.find
-
-    let scan_row picture i =
-      let row = picture.(i) in
-      snd
-      @@ Array.fold_left
-           (fun (j, acc) color ->
-            let codels, blocks = match acc with
-              | [] -> ([], [])
-              | (prev_color, _) :: _ as blocks when prev_color <> color ->
-                 ([], blocks)
-              | (_, codels) :: blocks -> (codels, blocks) in
-            (j + 1, (color, (j, i) :: codels) :: blocks))
-           (0, [])
-           row
 
     let edges codels =
       assert (codels <> Codels.empty);
@@ -90,56 +69,45 @@ module ColorBlocks =
                 (fun acc color -> acc && color = Picture.Black)
                 true
                 picture.(0));
-      let first_row_codels = Array.mapi (fun i _ -> (i, 0)) picture.(0) in
-      let first_block =
-        (Picture.Black,
-         ref (Codels.of_list @@ Array.to_list first_row_codels)) in
-      let blocks =
-        ref (Array.fold_left
-               (fun acc codel -> Map.add codel first_block acc)
-               Map.empty
-               first_row_codels) in
-      let join_codels color codels =
-        let codel_set = Codels.of_list codels in
-        let codel_sets =
-          List.map (fun (x, y) -> Map.find (x, y - 1) !blocks) codels
-          |> List.filter (fun (block_color, _) -> color = block_color)
-          |> List.rev_map snd
-          |> List.sort_uniq (fun a b -> Codels.compare !b !a) in
-        match codel_sets with
-        | [] ->
-           let block = (color, ref codel_set) in
-           blocks := Codels.fold
-                       (fun codel acc -> Map.add codel block acc)
-                       codel_set
-                       !blocks
-        | merged :: codel_sets ->
-           let updated = List.rev_map (fun codels -> !codels) codel_sets
-                         |> List.fold_left Codels.union codel_set in
-           merged := Codels.union updated !merged;
-           let merged_block = (color, merged) in
-           blocks := Codels.fold
-                       (fun codel acc -> Map.add codel merged_block acc)
-                       updated
-                       !blocks in
-      for i = 1 to (Array.length picture) - 1 do
-        List.iter
-          (fun (color, codels) -> join_codels color codels)
-          (scan_row picture i)
+      let height, width =
+        (Array.length picture), (Array.length picture.(0)) in
+      let color_block ((x, y) as codel) =
+        let color = picture.(y).(x) in
+        let queue = Queue.create () in
+        let rec color_block acc =
+          if Queue.is_empty queue then (color, acc)
+          else
+            begin
+              let x, y = Queue.pop queue in
+              let adjoining_codels =
+                List.filter
+                  (fun ((x, y) as codel) ->
+                   0 <= x && x < width && 0 <= y && y < height
+                   && picture.(y).(x) = color && not @@ Codels.mem codel acc)
+                  [ (x - 1, y); (x + 1, y); (x, y - 1); (x, y + 1) ] in
+              List.iter
+                (fun codel -> Queue.push codel queue)
+                adjoining_codels;
+              color_block
+              @@ Codels.union acc @@ Codels.of_list adjoining_codels
+            end in
+        Queue.push codel queue;
+        color_block @@ Codels.add codel Codels.empty in
+      let blocks = ref Map.empty in
+      for i = 0 to height - 1 do
+        for j = 0 to width - 1 do
+          let codel = (j, i) in
+          if not @@ Map.mem codel !blocks then
+            let (color, codels) = color_block codel in
+            let block = { color = color;
+                          edges = edges codels;
+                          size = Codels.cardinal codels } in
+            Codels.iter
+              (fun codel -> blocks := Map.add codel block !blocks)
+              codels
+        done
       done;
-      let edges_memo = ref EdgesMemo.empty in
-      Map.mapi
-        (fun codel (color, codels) ->
-         let edges =
-           try
-             EdgesMemo.find !codels !edges_memo
-           with
-           | Not_found ->
-              let edges = edges !codels in
-              edges_memo := EdgesMemo.add !codels edges !edges_memo;
-              edges in
-         { color = color; edges = edges; size = Codels.cardinal !codels })
-        !blocks
+      !blocks
   end
 
 module Stack =
