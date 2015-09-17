@@ -192,7 +192,6 @@ let point_description point blocks =
 
 let evaluator_description evaluator =
   let color =
-    let open Picture in
     let block = block_at evaluator evaluator.point in
     Picture.color_name block.color in
   let codel_chooser = codel_chooser_name evaluator.codel_chooser in
