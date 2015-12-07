@@ -32,8 +32,7 @@ let default_color_table =
   List.fold_left
     (fun acc (rgb, color) -> ColorTable.add rgb color acc)
     ColorTable.empty
-    [
-      ({ Color.r = 255; g = 192; b = 192 }, Color (Light, Red));
+    [ ({ Color.r = 255; g = 192; b = 192 }, Color (Light, Red));
       ({ Color.r = 255; g = 255; b = 192 }, Color (Light, Yellow));
       ({ Color.r = 192; g = 255; b = 192 }, Color (Light, Green));
       ({ Color.r = 192; g = 255; b = 255 }, Color (Light, Cyan));
@@ -52,8 +51,7 @@ let default_color_table =
       ({ Color.r = 0; g = 0; b = 192 }, Color (Dark, Blue));
       ({ Color.r = 192; g = 0; b = 192 }, Color (Dark, Magenta));
       ({ Color.r = 0; g = 0; b = 0 }, Black);
-      ({ Color.r = 255; g = 255; b = 255 }, White)
-    ]
+      ({ Color.r = 255; g = 255; b = 255 }, White) ]
 
 type t = color array array
 
@@ -88,8 +86,7 @@ let load_file
         try
           let x, y = sample_representive_pixel (j - 1) (i - 1) in
           ColorTable.find (Rgb24.get rgb_image x y) color_table
-        with
-        | Not_found -> unknown_color
+        with Not_found -> unknown_color
     done
   done;
   Images.destroy image;

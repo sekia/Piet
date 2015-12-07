@@ -99,7 +99,7 @@ module ColorBlocks =
           let codel = (j, i) in
           if not @@ Map.mem codel !blocks then
             let (color, codels) = color_block codel in
-            let block = { color = color;
+            let block = { color;
                           edges = edges codels;
                           size = Codels.cardinal codels } in
             Codels.iter
@@ -168,7 +168,7 @@ type t =
 let create ?(debug=false) picture =
   { blocks = ColorBlocks.of_picture picture;
     codel_chooser = Left;
-    debug = debug;
+    debug;
     direction = East;
     point = (1, 1);
     stack = Stack.empty }
@@ -220,7 +220,7 @@ let rotate_direction evaluator =
        ^ (direction_name evaluator.direction)
        ^ " -> "
        ^ (direction_name direction);
-  { evaluator with direction = direction }
+  { evaluator with direction }
 
 let toggle_codel_chooser evaluator =
   let codel_chooser = match evaluator.codel_chooser with
@@ -232,7 +232,7 @@ let toggle_codel_chooser evaluator =
        ^ (codel_chooser_name evaluator.codel_chooser)
        ^ " -> "
        ^ (codel_chooser_name codel_chooser);
-  { evaluator with codel_chooser = codel_chooser }
+  { evaluator with codel_chooser }
 
 module Command =
   struct
@@ -271,21 +271,21 @@ module Command =
 
     let pop _ evaluator =
       let stack, _ = Stack.pop evaluator.stack in
-      { evaluator with stack = stack }
+      { evaluator with stack }
 
     let unary_command command =
       fun _ evaluator ->
       let stack, popped = Stack.pop evaluator.stack in
       match popped with
       | None -> evaluator
-      | Some x -> command { evaluator with stack = stack } x
+      | Some x -> command { evaluator with stack } x
 
     let binary_command command =
       fun _ evaluator ->
       let stack, popped = Stack.pop2 evaluator.stack in
       match popped with
       | None -> evaluator
-      | Some (x, y) -> command { evaluator with stack = stack } x y
+      | Some (x, y) -> command { evaluator with stack } x y
 
     let binary_arithmetic op =
       binary_command
@@ -300,16 +300,14 @@ module Command =
 
     let divide prev_evaluator evaluator =
       try binary_arithmetic ( / ) prev_evaluator evaluator
-      with
-      | Division_by_zero -> evaluator
+      with Division_by_zero -> evaluator
 
     let mod_ prev_evaluator evaluator =
       let mod_ x y =
         let mod_ = x mod y in
         if mod_ * y >= 0 then mod_ else mod_ + y in
       try binary_arithmetic mod_ prev_evaluator evaluator
-      with
-      | Division_by_zero -> evaluator
+      with Division_by_zero -> evaluator
 
     let not =
       unary_command
@@ -343,7 +341,7 @@ module Command =
         (fun evaluator x ->
          let stack = Stack.push evaluator.stack x in
          let stack = Stack.push stack x in
-         { evaluator with stack = stack })
+         { evaluator with stack })
 
     let roll =
       binary_command
@@ -420,9 +418,6 @@ let step evaluator =
   let rec move evaluator retry =
     if retry = 0 then None
     else
-      let selector = match evaluator.codel_chooser with
-        | Left -> fst
-        | Right -> snd in
       let block = block_at evaluator evaluator.point in
       let edge_codel =
         let edge = match evaluator.direction with
@@ -430,7 +425,9 @@ let step evaluator =
           | East -> block.edges.east
           | South -> block.edges.south
           | West -> block.edges.west in
-        selector edge in
+        match evaluator.codel_chooser with
+        | Left -> fst edge
+        | Right -> snd edge in
       let forward = forward evaluator edge_codel in
       let forward_block = block_at evaluator forward in
       match forward_block.color with
